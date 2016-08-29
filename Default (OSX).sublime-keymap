@@ -1,0 +1,8 @@
+[
+    { 
+        "keys": ["super+alt+n"], "command": "getnextresult"
+    },
+    { 
+        "keys": ["super+alt+s"], "command": "suboverflow"
+    }
+]
