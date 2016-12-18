@@ -1,8 +1,8 @@
 [
     { 
-        "keys": ["super+alt+n"], "command": "getnextresult"
+	    "keys": ["super+alt+s"], "command": "suboverflow"
     },
-    { 
-        "keys": ["super+alt+s"], "command": "suboverflow"
+    {
+    	"keys": ["super+enter"], "command": "pageresult"
     }
 ]

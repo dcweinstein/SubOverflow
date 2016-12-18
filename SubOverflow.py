@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 query = ""
 cur_result = 0
 result_view = None
+result_obj = []
 
 class SuboverflowCommand(sublime_plugin.TextCommand):
 	def run(self, edit):
@@ -63,6 +64,51 @@ class SoCommand(sublime_plugin.TextCommand):
 
 		self.view.erase_status('suboverflow')
 
+	def show_results(self, thread, edit):
+		global result_view
+		if(result_view == None):
+			self.window = sublime.active_window()
+			result_view = self.window.new_file()
+			result_view.set_name("result")
+			result_view.set_scratch(True)
+		else:
+			result_view.erase(edit, sublime.Region(0, result_view.size()))
+		result_edit = result_view.begin_edit()
+		result_view.insert(result_edit, 0, thread.result)
+
+class PageresultCommand(sublime_plugin.TextCommand):
+	def run(self, edit):
+		title = self.view.substr(self.view.line(self.view.sel()[0]))
+		print title
+		thread = PageAsyncCall(title, 5)
+		thread.start()
+
+		self.handle_thread(thread, edit)
+
+	def handle_thread(self, thread, edit, i = 0, dir = 1):
+		next_thread = None
+		if thread.is_alive():
+			next_thread = thread
+		elif thread.result == False:
+			sublime.error_message('SubOverflow returned False')
+		else:
+			self.show_results(thread, edit)
+
+		if next_thread:
+			before = i % 8
+			after = (7) - before
+			if not after:
+				dir = -1
+			if not before:
+				dir = 1
+			i += dir
+			self.view.set_status('suboverflow', 'SubOverflow [%s=%s]' % (' ' * before, ' ' * after))
+
+			sublime.set_timeout(lambda: self.handle_thread(next_thread, edit, i, dir), 100)
+			return
+
+		self.view.erase_status('suboverflow')
+
 
 	def show_results(self, thread, edit):
 		global result_view
@@ -76,14 +122,6 @@ class SoCommand(sublime_plugin.TextCommand):
 		result_edit = result_view.begin_edit()
 		result_view.insert(result_edit, 0, thread.result)
 
-class GetnextresultCommand(sublime_plugin.TextCommand):
-	def run(self, edit):
-		global query
-		if(query != ""):
-			global query
-			send_query = {'query': query}
-			self.view.run_command('so', send_query)
-
 class SubOverflowAsyncCall(threading.Thread):
 	def __init__(self, query, timeout):
 		self.query = query
@@ -94,6 +132,7 @@ class SubOverflowAsyncCall(threading.Thread):
 	def run(self):
 		try:
 			global cur_result
+			global result_obj
 			q = self.query.replace(' ', '+')
 			url = 'https://api.stackexchange.com/2.2/search/advanced?order=desc&sort=activity&q=' + q + '&accepted=True&site=stackoverflow'
 			request = urllib2.Request(url)
@@ -105,11 +144,35 @@ class SubOverflowAsyncCall(threading.Thread):
 			data = f.read()
 			result_obj = json.loads(data)
 			objects = result_obj['items']
-			if(len(objects) <= cur_result):
-				cur_result = 0
-			result_link = objects[cur_result]['link']
-			cur_result += 1
-			link_request = urllib2.Request(result_link)
+			result_display = ''
+			for result in objects:
+				result_display += result['title']
+				result_display += '  --  [*'
+				result_display += result['link']
+				result_display += '*]\n\n'
+			self.result = result_display
+			return
+
+		except (urllib2.HTTPError) as (e):
+			err = '%s: HTTP error %s contacting API' % (__name__, str(e.code))
+		except (urllib2.URLError) as (e):
+			err = '%s: URL error %s contacting API' % (__name__, str(e.reason))
+
+		sublime.error_message(err)
+		self.result = False
+
+class PageAsyncCall(threading.Thread):
+	def __init__(self, result_title, timeout):
+		global result_obj
+		self.timeout = timeout
+		self.result = None
+		self.result_link = result_title.split("[*")[1].split("*]")[0]
+		print 'result link: ', self.result_link
+		threading.Thread.__init__(self)
+
+	def run(self):
+		try:
+			link_request = urllib2.Request(self.result_link)
 			link_response = urllib2.urlopen(link_request)
 			html_content = unicode(link_response.read(), 'utf-8')
 			soup = BeautifulSoup(html_content, 'html.parser')
@@ -163,7 +226,7 @@ class SubOverflowAsyncCall(threading.Thread):
 				result_display += '\n'
 
 			result_display += '-' * 80
-			result_display += '\nORIGINAL POST: ' + result_link
+			result_display += '\nORIGINAL POST: ' + self.result_link
 			self.result = result_display
 			return
 
