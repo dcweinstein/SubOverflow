@@ -145,6 +145,7 @@ class SubOverflowAsyncCall(threading.Thread):
 			result_obj = json.loads(data)
 			objects = result_obj['items']
 			result_display = ''
+			result_display += '**Place cursor on link you wish to view and press [cmd+retun] on Mac or [ctrl+enter] on Linux & Windows**\n\n\n'
 			for result in objects:
 				result_display += result['title']
 				result_display += '  --  [*'
